@@ -1,4 +1,5 @@
-﻿using MIDIModificationFramework.MIDIEvents;
+﻿using Microsoft.Extensions.ObjectPool;
+using MIDIModificationFramework.MIDIEvents;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -71,11 +72,16 @@ namespace MIDIModificationFramework
         IByteReader reader;
         long TrackTime { get; set; } = 0;
 
+        ObjectPool<NoteOnEvent> noteOnPool;
+        ObjectPool<NoteOffEvent> noteOffPool;
+
         public bool Ended { get; private set; } = false;
 
-        internal EventParser(IByteReader reader)
+        internal EventParser(IByteReader reader, ObjectPool<NoteOnEvent> noteOnPool, ObjectPool<NoteOffEvent> noteOffPool)
         {
             this.reader = reader;
+            this.noteOnPool = noteOnPool;
+            this.noteOffPool = noteOffPool;
         }
 
         public EventParser(Stream reader)
@@ -137,15 +143,31 @@ namespace MIDIModificationFramework
                     {
                         byte note = Read();
                         byte vel = Read();
-                        if (vel == 0) return new NoteOffEvent(delta, channel, note);
-                        return new NoteOnEvent(delta, channel, note, vel);
+                        if (vel == 0)
+                        {
+                            NoteOffEvent ret2 = noteOffPool?.Get() ?? new NoteOffEvent();
+                            ret2.DeltaTime = delta;
+                            ret2.Channel = channel;
+                            ret2.Key = note;
+                            return ret2;
+                        }
+                        NoteOnEvent ret = noteOnPool?.Get() ?? new NoteOnEvent();
+                        ret.DeltaTime = delta;
+                        ret.Channel = channel;
+                        ret.Key = note;
+                        ret.Velocity = vel;
+                        return ret;
                     }
 
                 case EventType.NoteOff:
                     {
+                        NoteOffEvent ret = noteOffPool?.Get() ?? new NoteOffEvent();
                         byte note = Read();
                         Read();
-                        return new NoteOffEvent(delta, channel, note);
+                        ret.DeltaTime = delta;
+                        ret.Channel = channel;
+                        ret.Key = note;
+                        return ret;
                     }
 
                 case EventType.Aftertouch:
