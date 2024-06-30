@@ -10,6 +10,46 @@ namespace MIDIModificationFramework
 {
     public class EventParser : IDisposable
     {
+        enum EventType
+        {
+            TrackStart = 0x00,
+            ChannelPrefix = 0x20,
+            MIDIPort = 0x21,
+            TrackEnd = 0x2F,
+            Tempo = 0x51,
+            SMPTEOffset = 0x54,
+            TimeSignature = 0x58,
+            KeySignature = 0x59,
+
+            NoteOff = 0x80,
+            NoteOn = 0x90,
+            Aftertouch = 0xA0,
+            CC = 0xB0,
+            PatchChange = 0xC0,
+            ChannelPressure = 0xD0,
+            PitchBend = 0xE0,
+
+            SystemMessageStart = 0xF0,
+            SystemMessageEnd = 0xF7,
+
+            MIDITCQF = 0xF1,
+            SongPositionPointer = 0xF2,
+            SongSelect = 0xF3,
+            TuneRequest = 0xF6,
+            TimingClock = 0xF8,
+            Start = 0xFA,
+            Continue = 0xFB,
+            Stop = 0xFC,
+            ActiveSensing = 0xFE,
+            SystemReset = 0xFF,
+
+            Unknown1 = 0xF1,
+            Unknown2 = 0xF4,
+            Unknown3 = 0xF5,
+            Unknown4 = 0xF9,
+            Unknown5 = 0xFD
+        };
+
         class StreamByteReader : IByteReader
         {
             Stream stream;
@@ -71,11 +111,14 @@ namespace MIDIModificationFramework
         }
 
         byte prevCommand;
-        public MIDIEvent ParseNextEvent()
+        public MIDIEvent ParseNextEvent(ref uint deltaTime)
         {
             if (Ended) return null;
+
             uint delta = ReadVariableLen();
             TrackTime += delta;
+            deltaTime = delta;
+
             byte command = Read();
             if (command < 0x80)
             {
@@ -83,225 +126,231 @@ namespace MIDIModificationFramework
                 command = prevCommand;
             }
             prevCommand = command;
-            byte comm = (byte)(command & 0b11110000);
-            if (comm == 0b10010000)
+
+            byte status = (byte)(command & 0xF0);
+            byte channel = (byte)(command & 0xF);
+            EventType eventType = (EventType)command;
+
+            switch ((EventType)status)
             {
-                byte channel = (byte)(command & 0b00001111);
-                byte note = Read();
-                byte vel = Read();
-                if (vel == 0) return new NoteOffEvent(delta, channel, note);
-                return new NoteOnEvent(delta, channel, note, vel);
-            }
-            else if (comm == 0b10000000)
-            {
-                byte channel = (byte)(command & 0b00001111);
-                byte note = Read();
-                byte vel = Read();
-                return new NoteOffEvent(delta, channel, note);
-            }
-            else if (comm == 0b10100000)
-            {
-                byte channel = (byte)(command & 0b00001111);
-                byte note = Read();
-                byte vel = Read();
-                return new PolyphonicKeyPressureEvent(delta, channel, note, vel);
-            }
-            else if (comm == 0b10110000)
-            {
-                byte channel = (byte)(command & 0b00001111);
-                byte controller = Read();
-                byte value = Read();
-                return new ControlChangeEvent(delta, command, controller, value);
-            }
-            else if (comm == 0b11000000)
-            {
-                byte program = Read();
-                return new ProgramChangeEvent(delta, command, program);
-            }
-            else if (comm == 0b11010000)
-            {
-                byte pressure = Read();
-                return new ChannelPressureEvent(delta, command, pressure);
-            }
-            else if (comm == 0b11100000)
-            {
-                byte var1 = Read();
-                byte var2 = Read();
-                return new PitchWheelChangeEvent(delta, command, (short)(((var2 << 7) | var1) - 8192));
-            }
-            else if (comm == 0b10110000)
-            {
-                byte cc = Read();
-                byte vv = Read();
-                return new ChannelModeMessageEvent(delta, command, cc, vv);
-            }
-            else if (command == 0b11110000)
-            {
-                List<byte> data = new List<byte>() { command };
-                byte b = 0;
-                while (b != 0b11110111)
-                {
-                    b = Read();
-                    data.Add(b);
-                }
-                return new SystemExclusiveMessageEvent(delta, data.ToArray());
-            }
-            else if (command == 0b11110100 || command == 0b11110001 || command == 0b11110101 || command == 0b11111001 || command == 0b11111101)
-            {
-                return new UndefinedEvent(delta, command);
-            }
-            else if (command == 0b11110010)
-            {
-                byte var1 = Read();
-                byte var2 = Read();
-                return new SongPositionPointerEvent(delta, (ushort)((var2 << 7) | var1));
-            }
-            else if (command == 0b11110011)
-            {
-                byte pos = Read();
-                return new SongSelectEvent(delta, pos);
-            }
-            else if (command == 0b11110110)
-            {
-                return new TuneRequestEvent(delta);
-            }
-            else if (command == 0b11110111)
-            {
-                return new EndOfExclusiveEvent(delta);
-            }
-            else if (command == 0b11111000)
-            {
-                return new MajorMidiMessageEvent(delta, command);
-            }
-            else if (command == 0b11111010)
-            {
-                return new MajorMidiMessageEvent(delta, command);
-            }
-            else if (command == 0b11111100)
-            {
-                return new MajorMidiMessageEvent(delta, command);
-            }
-            else if (command == 0b11111110)
-            {
-                return new MajorMidiMessageEvent(delta, command);
-            }
-            else if (command == 0xFF)
-            {
-                command = Read();
-                if (command == 0x00)
-                {
-                    if (Read() != 2)
+                case EventType.NoteOn:
                     {
-                        throw new Exception("Corrupt Track");
+                        byte note = Read();
+                        byte vel = Read();
+                        if (vel == 0) return new NoteOffEvent(delta, channel, note);
+                        return new NoteOnEvent(delta, channel, note, vel);
                     }
-                    return new TrackStartEvent();
-                }
-                else if ((command >= 0x01 && command <= 0x0A) || command == 0x7F)
-                {
-                    int size = (int)ReadVariableLen();
-                    var data = new byte[size];
-                    for (int i = 0; i < size; i++) data[i] = Read();
-                    if (command == 0x0A &&
-                        (size == 8 || size == 12) &&
-                        data[0] == 0x00 && data[1] == 0x0F &&
-                        (data[2] < 16 || data[2] == 7F) &&
-                        data[3] == 0)
+
+                case EventType.NoteOff:
                     {
-                        if (data.Length == 8)
+                        byte note = Read();
+                        Read();
+                        return new NoteOffEvent(delta, channel, note);
+                    }
+
+                case EventType.Aftertouch:
+                    {
+                        byte note = Read();
+                        byte vel = Read();
+                        return new PolyphonicKeyPressureEvent(delta, channel, note, vel);
+                    }
+
+                case EventType.CC:
+                    {
+                        byte cc = Read();
+                        byte vv = Read();
+                        return new ControlChangeEvent(delta, command, cc, vv);
+                    }
+
+                case EventType.PatchChange:
+                    {
+                        byte program = Read();
+                        return new ProgramChangeEvent(delta, command, program);
+                    }
+
+                case EventType.ChannelPressure:
+                    {
+                        byte pressure = Read();
+                        return new ChannelPressureEvent(delta, command, pressure);
+                    }
+
+                case EventType.PitchBend:
+                    {
+                        byte var1 = Read();
+                        byte var2 = Read();
+                        return new PitchWheelChangeEvent(delta, command, (short)(((var2 << 7) | var1) - 8192));
+                    }
+
+                case EventType.SystemMessageStart:
+                    {
+                        switch (eventType)
                         {
-                            return new ColorEvent(delta, data[2], data[4], data[5], data[6], data[7]);
+                            case EventType.SystemMessageStart:
+                                {
+                                    List<byte> data = new List<byte>() { command };
+                                    byte b = 0;
+                                    while ((EventType)b != EventType.SystemMessageEnd)
+                                    {
+                                        b = Read();
+                                        data.Add(b);
+                                    }
+                                    return new SystemExclusiveMessageEvent(delta, data.ToArray());
+                                }
+                            case EventType.MIDITCQF:
+                            case EventType.Unknown2:
+                            case EventType.Unknown3:
+                            case EventType.Unknown4:
+                            case EventType.Unknown5:
+                                return new UndefinedEvent(delta, command);
+
+                            case EventType.SongPositionPointer:
+                                {
+                                    byte var1 = Read();
+                                    byte var2 = Read();
+                                    return new SongPositionPointerEvent(delta, (ushort)((var2 << 7) | var1));
+                                }
+
+                            case EventType.SongSelect:
+                                {
+                                    byte pos = Read();
+                                    return new SongSelectEvent(delta, pos);
+                                }
+
+                            case EventType.TuneRequest:
+                                return new TuneRequestEvent(delta);
+
+                            case EventType.SystemMessageEnd:
+                                throw new ArgumentException($"SysEx end with no SysEx start?");
+
+                            case EventType.Start:
+                            case EventType.Continue:
+                            case EventType.Stop:
+                            case EventType.TimingClock:
+                            case EventType.ActiveSensing:
+                                return new MajorMidiMessageEvent(delta, command);
+
+                            case EventType.SystemReset:
+                                {
+                                    command = Read();
+
+                                    switch ((EventType)command)
+                                    {
+                                        case EventType.TrackStart:
+                                            {
+                                                byte st = Read();
+                                                if (st != 2)
+                                                    throw new ArgumentException($"TrackStart >> Expected 2 but got {st}");
+
+                                                return new TrackStartEvent();
+                                            }
+
+                                        case EventType.TrackEnd:
+                                            {
+                                                command = Read();
+                                                if (command != 0)
+                                                    throw new ArgumentException($"TrackEnd >> Expected 0 but got {command}");
+
+                                                Ended = true;
+                                                return null;
+                                            }
+
+                                        case EventType.ChannelPrefix:
+                                            {
+                                                command = Read();
+                                                if (command != 1)
+                                                    throw new ArgumentException($"ChannelPrefix >> Expected 1 but got {command}");
+
+                                                return new ChannelPrefixEvent(delta, Read());
+                                            }
+
+                                        case EventType.MIDIPort:
+                                            {
+                                                command = Read();
+                                                if (command != 1)
+                                                    throw new ArgumentException($"MIDIPort >> Expected 1 but got {command}");
+
+                                                return new MIDIPortEvent(delta, Read());
+                                            }
+
+                                        case EventType.Tempo:
+                                            {
+                                                command = Read();
+                                                if (command != 3)
+                                                    throw new ArgumentException($"Tempo >> Expected 3 but got {command}");
+
+                                                int btempo = 0;
+                                                for (int i = 0; i != 3; i++)
+                                                    btempo = (btempo << 8) | Read();
+                                                return new TempoEvent(delta, btempo);
+                                            }
+
+                                        case EventType.SMPTEOffset:
+                                            {
+                                                command = Read();
+                                                if (command != 5)
+                                                    throw new ArgumentException($"SMPTEOffset >> Expected 5 but got {command}");
+
+                                                byte hr = Read();
+                                                byte mn = Read();
+                                                byte se = Read();
+                                                byte fr = Read();
+                                                byte ff = Read();
+                                                return new SMPTEOffsetEvent(delta, hr, mn, se, fr, ff);
+                                            }
+
+                                        case EventType.TimeSignature:
+                                            {
+                                                command = Read();
+                                                if (command != 4)
+                                                    throw new ArgumentException($"TimeSignature >> Expected 4 but got {command}");
+
+                                                byte nn = Read();
+                                                byte dd = Read();
+                                                byte cc = Read();
+                                                byte bb = Read();
+                                                return new TimeSignatureEvent(delta, nn, dd, cc, bb);
+                                            }
+
+                                        case EventType.KeySignature:
+                                            {
+                                                command = Read();
+                                                if (command != 2)
+                                                    throw new ArgumentException($"KeySignature >> Expected 2 but got {command}");
+
+                                                byte sf = Read();
+                                                byte mi = Read();
+                                                return new KeySignatureEvent(delta, sf, mi);
+                                            }
+                                    }
+
+                                    if ((command >= 0x01 && command <= 0x0A) || command == 0x7F)
+                                    {
+                                        int size = (int)ReadVariableLen();
+                                        var data = new byte[size];
+                                        for (int i = 0; i < size; i++) data[i] = Read();
+                                        if (command == 0x0A &&
+                                            (size == 8 || size == 12) &&
+                                            data[0] == 0x00 && data[1] == 0x0F &&
+                                            (data[2] < 16 || data[2] == 7F) &&
+                                            data[3] == 0)
+                                        {
+                                            if (data.Length == 8)
+                                            {
+                                                return new ColorEvent(delta, data[2], data[4], data[5], data[6], data[7]);
+                                            }
+                                            return new ColorEvent(delta, data[2], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11]);
+                                        }
+                                        else return new TextEvent(delta, command, data);
+                                    }
+                                    else break;
+                                }                         
                         }
-                        return new ColorEvent(delta, data[2], data[4], data[5], data[6], data[7], data[8], data[9], data[10], data[11]);
+
+                        return new UndefinedEvent(delta, command);
                     }
-                    else
-                        return new TextEvent(delta, command, data);
-                }
-                else if (command == 0x20)
-                {
-                    command = Read();
-                    if (command != 1)
-                    {
-                        throw new Exception("Corrupt Track");
-                    }
-                    return new ChannelPrefixEvent(delta, Read());
-                }
-                else if (command == 0x21)
-                {
-                    command = Read();
-                    if (command != 1)
-                    {
-                        throw new Exception("Corrupt Track");
-                    }
-                    return new MIDIPortEvent(delta, Read());
-                }
-                else if (command == 0x2F)
-                {
-                    command = Read();
-                    if (command != 0)
-                    {
-                        throw new Exception("Corrupt Track");
-                    }
-                    Ended = true;
-                    return null;
-                }
-                else if (command == 0x51)
-                {
-                    command = Read();
-                    if (command != 3)
-                    {
-                        throw new Exception("Corrupt Track");
-                    }
-                    int btempo = 0;
-                    for (int i = 0; i != 3; i++)
-                        btempo = (int)((btempo << 8) | Read());
-                    return new TempoEvent(delta, btempo);
-                }
-                else if (command == 0x54)
-                {
-                    command = Read();
-                    if (command != 5)
-                    {
-                        throw new Exception("Corrupt Track");
-                    }
-                    byte hr = Read();
-                    byte mn = Read();
-                    byte se = Read();
-                    byte fr = Read();
-                    byte ff = Read();
-                    return new SMPTEOffsetEvent(delta, hr, mn, se, fr, ff);
-                }
-                else if (command == 0x58)
-                {
-                    command = Read();
-                    if (command != 4)
-                    {
-                        throw new Exception("Corrupt Track");
-                    }
-                    byte nn = Read();
-                    byte dd = Read();
-                    byte cc = Read();
-                    byte bb = Read();
-                    return new TimeSignatureEvent(delta, nn, dd, cc, bb);
-                }
-                else if (command == 0x59)
-                {
-                    command = Read();
-                    if (command != 2)
-                    {
-                        throw new Exception("Corrupt Track");
-                    }
-                    byte sf = Read();
-                    byte mi = Read();
-                    return new KeySignatureEvent(delta, sf, mi);
-                }
-                else
-                {
-                    throw new Exception("Corrupt Track");
-                }
-            }
-            else
-            {
-                throw new Exception("Corrupt Track");
+
+                default:
+                    return new UndefinedEvent(delta, command);
             }
         }
 

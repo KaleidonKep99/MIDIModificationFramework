@@ -171,12 +171,15 @@ namespace MIDIModificationFramework
             tracks++;
         }
 
-        public void Close()
+        public void Close(bool dispose)
         {
             if (tracks > 65535) tracks = 65535;
             WriteNtrks((ushort)tracks);
+            
             writer.Flush();
-            writer.Close();
+
+            if (dispose)
+                writer.Close();
         }
     }
 }

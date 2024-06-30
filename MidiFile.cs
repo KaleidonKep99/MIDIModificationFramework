@@ -35,10 +35,11 @@ namespace MIDIModificationFramework
         public IEnumerable<MIDIEvent> GetTrackUnsafe(int track)
         {
             var reader = new EventParser(GetTrackByteReader(track));
+            uint delta = 0;
             while (!reader.Ended)
             {
                 MIDIEvent ev;
-                ev = reader.ParseNextEvent();
+                ev = reader.ParseNextEvent(ref delta);
                 if (ev == null) break;
                 yield return ev;
             }
@@ -48,21 +49,21 @@ namespace MIDIModificationFramework
         public IEnumerable<MIDIEvent> GetTrack(int track)
         {
             var reader = new EventParser(GetTrackByteReader(track));
+            uint delta = 0;
             while (!reader.Ended)
             {
                 MIDIEvent ev;
-                try
-                {
-                    ev = reader.ParseNextEvent();
-                }
-                catch
-                {
-                    break;
-                }
+                try { ev = reader.ParseNextEvent(ref delta); }
+                catch { ev = new UndefinedEvent(delta, 0); }
                 if (ev == null) break;
                 yield return ev;
             }
             reader.Dispose();
+        }
+
+        public IEnumerable<IEnumerable<MIDIEvent>> IterateTracksUnsafe()
+        {
+            for (int i = 0; i < TrackCount; i++) yield return GetTrackUnsafe(i);
         }
 
         public IEnumerable<IEnumerable<MIDIEvent>> IterateTracks()
@@ -89,7 +90,7 @@ namespace MIDIModificationFramework
         public MidiFile(Stream stream) : this(stream, 100000)
         { }
 
-        public MidiFile(string filename, int readBufferSize) : this(File.Open(filename, FileMode.Open), readBufferSize)
+        public MidiFile(string filename, int readBufferSize) : this(File.Open(filename, FileMode.Open, FileAccess.Read, FileShare.Read), readBufferSize)
         { }
 
         public MidiFile(string filename) : this(filename, 100000)

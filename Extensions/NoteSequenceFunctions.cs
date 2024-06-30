@@ -24,6 +24,11 @@ namespace MIDIModificationFramework
             return NoteConversion.ToTrackNotes(seq, track);
         }
 
+        public static IEnumerable<MIDIEvent> MergeAll(this IEnumerable<IEnumerable<MIDIEvent>> seq)
+        {
+            return Mergers.MergeSequences(seq);
+        }
+
         public static IEnumerable<T> MergeAll<T>(this IEnumerable<IEnumerable<T>> seq)
             where T : Note
         {
@@ -54,7 +59,7 @@ namespace MIDIModificationFramework
                 {
                     var nc = n.Clone() as T;
                     nc.SetStartOnly(time);
-                    if(nc.Length < 0.00000001) continue;
+                    if (nc.Length < 0.00000001) continue;
                     yield return nc;
                 }
                 else
@@ -74,7 +79,7 @@ namespace MIDIModificationFramework
                 {
                     var nc = n.Clone() as T;
                     nc.End = time;
-                    if(nc.Length < 0.00000001) continue;
+                    if (nc.Length < 0.00000001) continue;
                     yield return nc;
                 }
                 else
