@@ -8,7 +8,8 @@ namespace MIDIModificationFramework.MIDIEvents
 {
     public class NoteOffEvent : NoteEvent
     {
-        public byte Velocity { get; set; }
+        public NoteOffEvent() : this(0, 0, 0)
+        { }
 
         public NoteOffEvent(double delta, byte channel, byte key) : base(delta, key, channel)
         {
@@ -28,6 +29,14 @@ namespace MIDIModificationFramework.MIDIEvents
                 Key,
                 0
             };
+        }
+
+        public override byte[] GetData(byte[] scratch)
+        {
+            scratch[0] = (byte)(0b10000000 | Channel);
+            scratch[1] = Key;
+            scratch[2] = 0;
+            return scratch;
         }
     }
 }

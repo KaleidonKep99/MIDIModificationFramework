@@ -1,4 +1,5 @@
-﻿using MIDIModificationFramework.MIDIEvents;
+﻿using Microsoft.Extensions.ObjectPool;
+using MIDIModificationFramework.MIDIEvents;
 using System;
 using System.Collections.Generic;
 using System.IO;
@@ -19,6 +20,10 @@ namespace MIDIModificationFramework
         public ushort Format { get; private set; }
         public ushort PPQ { get; private set; }
         public int TrackCount { get; private set; }
+        public bool Pooled { get; set; }
+
+        DefaultObjectPool<NoteOnEvent> noteOnPool;
+        DefaultObjectPool<NoteOffEvent> noteOffPool;
 
         internal MidiChunkPointer[] TrackLocations { get; private set; }
 
@@ -34,7 +39,7 @@ namespace MIDIModificationFramework
 
         public IEnumerable<MIDIEvent> GetTrackUnsafe(int track)
         {
-            var reader = new EventParser(GetTrackByteReader(track));
+            var reader = new EventParser(GetTrackByteReader(track), Pooled ? noteOnPool : null, Pooled ? noteOffPool : null);
             uint delta = 0;
             while (!reader.Ended)
             {
@@ -48,7 +53,7 @@ namespace MIDIModificationFramework
 
         public IEnumerable<MIDIEvent> GetTrack(int track)
         {
-            var reader = new EventParser(GetTrackByteReader(track));
+            var reader = new EventParser(GetTrackByteReader(track), Pooled ? noteOnPool : null, Pooled ? noteOffPool : null);
             uint delta = 0;
             while (!reader.Ended)
             {
@@ -85,6 +90,9 @@ namespace MIDIModificationFramework
             TrackLocations = tracks.ToArray();
             TrackCount = TrackLocations.Length;
             readProvider = new DiskReadProvider(stream);
+
+            noteOnPool = new DefaultObjectPool<NoteOnEvent>(new DefaultPooledObjectPolicy<NoteOnEvent>(), 1024);
+            noteOffPool = new DefaultObjectPool<NoteOffEvent>(new DefaultPooledObjectPolicy<NoteOffEvent>(), 1024);
         }
 
         public MidiFile(Stream stream) : this(stream, 100000)
@@ -144,6 +152,17 @@ namespace MIDIModificationFramework
         public void Dispose()
         {
             reader.Dispose();
+        }
+
+        public void Return(MIDIEvent ev)
+        {
+            if (Pooled)
+            {
+                if (ev is NoteOnEvent noteOn)
+                    noteOnPool.Return(noteOn);
+                else if (ev is NoteOffEvent noteOff)
+                    noteOffPool.Return(noteOff);
+            }
         }
     }
 }

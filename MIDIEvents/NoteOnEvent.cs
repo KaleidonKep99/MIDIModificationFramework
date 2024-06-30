@@ -10,6 +10,9 @@ namespace MIDIModificationFramework.MIDIEvents
     {
         public byte Velocity { get; set; }
 
+        public NoteOnEvent() : this(0, 0, 0, 0)
+        { }
+
         public NoteOnEvent(double delta, byte channel, byte key, byte velocity) : base(delta, key, channel)
         {
             Key = key;
@@ -29,6 +32,14 @@ namespace MIDIModificationFramework.MIDIEvents
                 Key,
                 Velocity
             };
+        }
+
+        public override byte[] GetData(byte[] scratch)
+        {
+            scratch[0] = (byte)(0b10010000 | Channel);
+            scratch[1] = Key;
+            scratch[2] = Velocity;
+            return scratch;
         }
     }
 }

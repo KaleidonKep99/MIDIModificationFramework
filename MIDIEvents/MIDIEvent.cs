@@ -25,6 +25,11 @@ namespace MIDIModificationFramework
         }
         public abstract byte[] GetData();
 
+        public virtual byte[] GetData(byte[] scratch)
+        {
+            return GetData();
+        }
+
         IEnumerable<byte> MakeVariableLenFast(int i)
         {
             var b = new byte[5];
