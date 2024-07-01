@@ -161,15 +161,19 @@ namespace MIDIModificationFramework
             this.reader = reader;
             Task.Run(() =>
             {
-                foreach (var request in requests.GetConsumingEnumerable())
+                try
                 {
-                    if (reader.Position != request.from)
+                    foreach (var request in requests.GetConsumingEnumerable())
                     {
-                        reader.Position = request.from;
+                        if (reader.Position != request.from)
+                        {
+                            reader.Position = request.from;
+                        }
+                        reader.Read(request.buffer, 0, request.length);
+                        request.output.Add(request.buffer);
                     }
-                    reader.Read(request.buffer, 0, request.length);
-                    request.output.Add(request.buffer);
                 }
+                catch (ObjectDisposedException) { }
             });
         }
 
