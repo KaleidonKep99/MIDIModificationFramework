@@ -32,6 +32,7 @@ namespace MIDIModificationFramework
 
             SystemMessageStart = 0xF0,
             SystemMessageEnd = 0xF7,
+            SystemMessageRealtime = 0x7F,
 
             MIDITCQF = 0xF1,
             SongPositionPointer = 0xF2,
@@ -207,7 +208,7 @@ namespace MIDIModificationFramework
                     {
                         switch (eventType)
                         {
-                            case EventType.SystemMessageStart:
+                            case EventType.SystemMessageRealtime:
                                 {
                                     List<byte> data = new List<byte>() { command };
                                     byte b = 0;
@@ -218,6 +219,7 @@ namespace MIDIModificationFramework
                                     }
                                     return new SystemExclusiveMessageEvent(delta, data.ToArray());
                                 }
+
                             case EventType.MIDITCQF:
                             case EventType.Unknown2:
                             case EventType.Unknown3:
