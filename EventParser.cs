@@ -208,16 +208,14 @@ namespace MIDIModificationFramework
                     {
                         switch (eventType)
                         {
-                            case EventType.SystemMessageRealtime:
+                            case EventType.SystemMessageStart:
                                 {
-                                    List<byte> data = new List<byte>() { command };
-                                    byte b = 0;
-                                    while ((EventType)b != EventType.SystemMessageEnd)
-                                    {
-                                        b = Read();
-                                        data.Add(b);
-                                    }
-                                    return new SystemExclusiveMessageEvent(delta, data.ToArray());
+                                    byte[] data = new byte[ReadVariableLen() + 1];
+                                    data[0] = (byte)EventType.SystemMessageStart;
+                                    for (int i = 1; i < data.Length; i++)
+                                        data[i] = Read();
+    
+                                    return new SystemExclusiveMessageEvent(delta, data);
                                 }
 
                             case EventType.MIDITCQF:
