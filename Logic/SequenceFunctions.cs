@@ -1,9 +1,6 @@
 ﻿using MIDIModificationFramework.MIDIEvents;
 using System;
 using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace MIDIModificationFramework
 {
@@ -11,7 +8,6 @@ namespace MIDIModificationFramework
     {
         public static IEnumerable<MIDIEvent> CancelTempoEvents(IEnumerable<MIDIEvent> sequence, double newTempo, bool returnTempos = false)
         {
-            double extraTicks = 0;
             int tempo = 500000;
             double lastDiff = 0;
 
@@ -20,14 +16,16 @@ namespace MIDIModificationFramework
             foreach (var _e in sequence)
             {
                 var e = _e.Clone();
-                e.DeltaTime = e.DeltaTime / newTempo * tempo + extraTicks;
-                extraTicks = 0;
+                e.DeltaTime = e.DeltaTime / newTempo * tempo + lastDiff;
+                lastDiff = 0;
                 if (e is TempoEvent)
                 {
                     var ev = e as TempoEvent;
+
                     tempo = ev.Tempo;
-                    extraTicks = e.DeltaTime + lastDiff;
-                    lastDiff = 0;
+
+                    lastDiff = e.DeltaTime;
+
                     if (returnTempos)
                     {
                         ev.Tempo = (int)newTempo;
