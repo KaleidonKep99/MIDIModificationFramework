@@ -20,6 +20,7 @@ namespace MIDIModificationFramework
         public ushort Format { get; private set; }
         public ushort PPQ { get; private set; }
         public int TrackCount { get; private set; }
+        public bool ZeroVelocityNoteOns { get; set; }
         public bool Pooled { get; set; }
 
         DefaultObjectPool<NoteOnEvent> noteOnPool;
@@ -39,7 +40,7 @@ namespace MIDIModificationFramework
 
         public IEnumerable<MIDIEvent> GetTrackUnsafe(int track)
         {
-            var reader = new EventParser(GetTrackByteReader(track), Pooled ? noteOnPool : null, Pooled ? noteOffPool : null);
+            var reader = new EventParser(GetTrackByteReader(track), ZeroVelocityNoteOns, Pooled ? noteOnPool : null, Pooled ? noteOffPool : null);
             uint delta = 0;
             while (!reader.Ended)
             {
@@ -53,7 +54,7 @@ namespace MIDIModificationFramework
 
         public IEnumerable<MIDIEvent> GetTrack(int track)
         {
-            var reader = new EventParser(GetTrackByteReader(track), Pooled ? noteOnPool : null, Pooled ? noteOffPool : null);
+            var reader = new EventParser(GetTrackByteReader(track), ZeroVelocityNoteOns, Pooled ? noteOnPool : null, Pooled ? noteOffPool : null);
             uint delta = 0;
             while (!reader.Ended)
             {

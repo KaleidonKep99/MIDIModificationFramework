@@ -75,14 +75,16 @@ namespace MIDIModificationFramework
 
         ObjectPool<NoteOnEvent> noteOnPool;
         ObjectPool<NoteOffEvent> noteOffPool;
+        bool ZeroVelocityNoteOns;
 
         public bool Ended { get; private set; } = false;
 
-        internal EventParser(IByteReader reader, ObjectPool<NoteOnEvent> noteOnPool, ObjectPool<NoteOffEvent> noteOffPool)
+        internal EventParser(IByteReader reader, bool ZeroVelocityNoteOns, ObjectPool<NoteOnEvent> noteOnPool, ObjectPool<NoteOffEvent> noteOffPool)
         {
             this.reader = reader;
             this.noteOnPool = noteOnPool;
             this.noteOffPool = noteOffPool;
+            this.ZeroVelocityNoteOns = ZeroVelocityNoteOns;
         }
 
         public EventParser(Stream reader)
@@ -146,11 +148,15 @@ namespace MIDIModificationFramework
                         byte vel = Read();
                         if (vel == 0)
                         {
-                            NoteOffEvent ret2 = noteOffPool?.Get() ?? new NoteOffEvent();
-                            ret2.DeltaTime = delta;
-                            ret2.Channel = channel;
-                            ret2.Key = note;
-                            return ret2;
+                            if (!ZeroVelocityNoteOns)
+                            {
+                                NoteOffEvent ret2 = noteOffPool?.Get() ?? new NoteOffEvent();
+                                ret2.DeltaTime = delta;
+                                ret2.Channel = channel;
+                                ret2.Key = note;
+                                return ret2;
+                            }
+                            else vel = 1; 
                         }
                         NoteOnEvent ret = noteOnPool?.Get() ?? new NoteOnEvent();
                         ret.DeltaTime = delta;
