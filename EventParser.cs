@@ -180,8 +180,8 @@ namespace MIDIModificationFramework
                 case EventType.Aftertouch:
                     {
                         byte note = Read();
-                        byte vel = Read();
-                        return new PolyphonicKeyPressureEvent(delta, channel, note, vel);
+                        byte pressure = Read();
+                        return new PolyphonicKeyPressureEvent(delta, channel, note, pressure);
                     }
 
                 case EventType.CC:

@@ -8,17 +8,17 @@ namespace MIDIModificationFramework.MIDIEvents
 {
     public class PolyphonicKeyPressureEvent : NoteEvent
     {
-        public byte Velocity { get; set; }
+        public byte Pressure { get; set; }
 
-        public PolyphonicKeyPressureEvent(double delta, byte channel, byte key, byte velocity) : base(delta, key, channel)
+        public PolyphonicKeyPressureEvent(double delta, byte channel, byte key, byte pressure) : base(delta, key, channel)
         {
             Key = key;
-            Velocity = velocity;
+            Pressure = pressure;
         }
 
         public override MIDIEvent Clone()
         {
-            return new PolyphonicKeyPressureEvent(DeltaTime, Channel, Key, Velocity);
+            return new PolyphonicKeyPressureEvent(DeltaTime, Channel, Key, Pressure);
         }
 
         public override byte[] GetData()
@@ -27,7 +27,7 @@ namespace MIDIModificationFramework.MIDIEvents
             {
                 (byte)(0b10100000 | Channel),
                 Key,
-                Velocity
+                Pressure
             };
         }
     }
